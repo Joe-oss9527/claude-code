@@ -1,0 +1,14 @@
+{
+  "name": "my-hooks-plugin",
+  "description": "Plugin with event hooks for automation",
+  "version": "1.0.0",
+  "author": {
+    "name": "Your Name",
+    "email": "your@email.com"
+  },
+  "keywords": [
+    "hooks",
+    "automation",
+    "validation"
+  ]
+}

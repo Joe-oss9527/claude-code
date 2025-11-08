@@ -1,0 +1,14 @@
+{
+  "name": "my-complete-plugin",
+  "description": "Full-featured plugin with skill, agent, command, and hooks",
+  "version": "1.0.0",
+  "author": {
+    "name": "Your Name",
+    "email": "your@email.com"
+  },
+  "keywords": [
+    "complete",
+    "full-featured",
+    "example"
+  ]
+}
