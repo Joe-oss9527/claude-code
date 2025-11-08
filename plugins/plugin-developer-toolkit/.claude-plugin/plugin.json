@@ -1,0 +1,24 @@
+{
+  "name": "plugin-developer-toolkit",
+  "description": "Meta-plugin for creating, developing, and understanding Claude Code plugins. Teaches plugin development through self-demonstrating examples and provides templates.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Claude Code Team",
+    "email": "support@anthropic.com"
+  },
+  "keywords": [
+    "plugin-development",
+    "meta-plugin",
+    "templates",
+    "skills",
+    "agents",
+    "commands",
+    "hooks",
+    "plugin-creation",
+    "development-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Joe-oss9527/claude-code"
+  }
+}

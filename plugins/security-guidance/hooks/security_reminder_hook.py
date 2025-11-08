@@ -123,6 +123,301 @@ Only use exec() if you absolutely need shell features and the input is guarantee
         "substrings": ["os.system", "from os import system"],
         "reminder": "⚠️ Security Warning: This code appears to use os.system. This should only be used with static arguments and never with arguments that could be user-controlled.",
     },
+    # Frontend-specific security patterns
+    {
+        "ruleName": "unsafe_href",
+        "substrings": ["href={", 'href="{'],
+        "reminder": """⚠️ Security Warning: Dynamic href values can create XSS vulnerabilities.
+
+Dangerous patterns:
+- href={userInput}
+- href={`javascript:${code}`}
+- href={'javascript:' + userCode}
+
+Safe patterns:
+1. Validate URLs against whitelist:
+   ```typescript
+   const isValidUrl = (url: string) => {
+     try {
+       const parsed = new URL(url);
+       return ['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol);
+     } catch {
+       return false;
+     }
+   };
+
+   if (!isValidUrl(userUrl)) {
+     throw new Error('Invalid URL');
+   }
+   ```
+
+2. Use rel="noopener noreferrer" for external links:
+   ```typescript
+   <a href={externalUrl} target="_blank" rel="noopener noreferrer">
+   ```
+
+3. Sanitize user input before using in href attributes.""",
+    },
+    {
+        "ruleName": "unsafe_target_blank",
+        "substrings": ['target="_blank"', "target='_blank'"],
+        "reminder": """⚠️ Security Best Practice: Always use rel="noopener noreferrer" with target="_blank".
+
+Why this matters:
+1. **Tabnapping Prevention**: Without rel="noopener", the new page can access window.opener
+2. **Performance**: The new page runs in the same process, impacting performance
+3. **Privacy**: Prevents referer leakage in some cases
+
+Safe pattern:
+```typescript
+<a href={url} target="_blank" rel="noopener noreferrer">
+  Link text
+</a>
+```
+
+Additional considerations:
+- For same-origin links, rel="opener" is safe
+- For external links, ALWAYS use rel="noopener noreferrer"
+- Consider using noreferrer for additional privacy""",
+    },
+    {
+        "ruleName": "localstorage_sensitive_data",
+        "substrings": ["localStorage.setItem", "sessionStorage.setItem"],
+        "reminder": """⚠️ Security Warning: Don't store sensitive data in localStorage/sessionStorage.
+
+Why it's dangerous:
+1. Accessible to all JavaScript (including third-party scripts)
+2. Vulnerable to XSS attacks
+3. Persists across sessions (localStorage)
+4. No built-in encryption
+5. Can be accessed by browser extensions
+
+Never store:
+- ❌ Authentication tokens (use httpOnly cookies instead)
+- ❌ API keys or secrets
+- ❌ Passwords or password hashes
+- ❌ Personal identifiable information (PII)
+- ❌ Credit card information
+- ❌ Social security numbers
+
+Safe to store:
+- ✅ User preferences (theme, language)
+- ✅ UI state (sidebar collapsed, tab selection)
+- ✅ Non-sensitive cache data
+- ✅ Analytics IDs (public data)
+
+For authentication tokens:
+```typescript
+// ❌ Bad: Store in localStorage
+localStorage.setItem('authToken', token);
+
+// ✅ Good: Use httpOnly cookies set by backend
+// Server sets: Set-Cookie: authToken=xxx; HttpOnly; Secure; SameSite=Strict
+```""",
+    },
+    {
+        "ruleName": "react_refs_dom_manipulation",
+        "substrings": [".innerHTML =", ".outerHTML =", "ref.current"],
+        "reminder": """⚠️ Security Warning: Direct DOM manipulation via refs can introduce XSS vulnerabilities.
+
+Dangerous pattern:
+```typescript
+const ref = useRef<HTMLDivElement>(null);
+ref.current.innerHTML = userContent; // XSS risk!
+```
+
+Safe alternatives:
+1. Use textContent for plain text:
+   ```typescript
+   ref.current.textContent = userContent; // Safe
+   ```
+
+2. Use React's rendering (preferred):
+   ```typescript
+   function Component({ content }: { content: string }) {
+     return <div>{content}</div>; // React auto-escapes
+   }
+   ```
+
+3. If you need HTML, sanitize first:
+   ```typescript
+   import DOMPurify from 'dompurify';
+
+   const sanitized = DOMPurify.sanitize(userHTML);
+   ref.current.innerHTML = sanitized;
+   ```
+
+Best practice: Avoid direct DOM manipulation in React. Let React manage the DOM.""",
+    },
+    {
+        "ruleName": "postmessage_origin",
+        "substrings": ["postMessage(", "addEventListener('message'", 'addEventListener("message"'],
+        "reminder": """⚠️ Security Warning: Always validate origin when using postMessage API.
+
+Unsafe patterns:
+```typescript
+// ❌ Bad: Accept messages from any origin
+window.postMessage(data, '*');
+
+window.addEventListener('message', (event) => {
+  processData(event.data); // No origin check!
+});
+```
+
+Safe patterns:
+```typescript
+// ✅ Good: Specify exact origin
+window.postMessage(data, 'https://trusted-origin.com');
+
+// ✅ Good: Validate sender origin
+window.addEventListener('message', (event) => {
+  // Whitelist of trusted origins
+  const trustedOrigins = ['https://app.example.com', 'https://api.example.com'];
+
+  if (!trustedOrigins.includes(event.origin)) {
+    console.warn('Untrusted origin:', event.origin);
+    return; // Ignore message
+  }
+
+  // Validate data structure
+  if (typeof event.data !== 'object' || !event.data.type) {
+    return;
+  }
+
+  processData(event.data);
+});
+```
+
+Additional security:
+- Validate data structure before processing
+- Never execute code from postMessage data
+- Use structured cloning for data transfer
+- Consider using a message protocol/schema""",
+    },
+    {
+        "ruleName": "react_key_index",
+        "substrings": ["key={i}", "key={index}", "key={idx}"],
+        "reminder": """⚠️ Best Practice Warning: Using array index as React key can cause issues.
+
+Problems with index keys:
+1. **State bugs**: Component state persists incorrectly when list reorders
+2. **Performance**: React can't optimize reconciliation
+3. **Incorrect updates**: Wrong components receive wrong props
+4. **Animation issues**: Transitions apply to wrong elements
+
+Example of the problem:
+```typescript
+// ❌ Bad: Using index
+{items.map((item, index) => (
+  <TodoItem key={index} {...item} />
+))}
+
+// If items reorder, React thinks item at index 0 is the same component
+// but with different props, causing state and animation issues
+```
+
+Correct approach:
+```typescript
+// ✅ Good: Using stable, unique identifier
+{items.map((item) => (
+  <TodoItem key={item.id} {...item} />
+))}
+```
+
+When index is acceptable:
+- ✅ List never reorders
+- ✅ List is static (no add/remove)
+- ✅ Items have no internal state
+- ✅ No animations or transitions
+
+Best practice: Always use stable, unique identifiers as keys.""",
+    },
+    {
+        "ruleName": "cors_credentials",
+        "substrings": ["credentials: 'include'", "withCredentials: true"],
+        "reminder": """⚠️ Security Warning: Using credentials with CORS requires careful configuration.
+
+When you use credentials: 'include' or withCredentials: true:
+
+Security requirements:
+1. ❌ Server CANNOT use Access-Control-Allow-Origin: *
+2. ✅ Server MUST specify exact origin
+3. ✅ Use HTTPS in production (not HTTP)
+4. ✅ Implement CSRF protection
+5. ✅ Validate requests on server side
+
+Example:
+```typescript
+// Frontend
+fetch('/api/data', {
+  credentials: 'include', // Sends cookies
+  headers: {
+    'X-CSRF-Token': getCsrfToken(), // CSRF protection required!
+  }
+});
+
+// Backend must respond with:
+// Access-Control-Allow-Origin: https://your-exact-domain.com (NOT *)
+// Access-Control-Allow-Credentials: true
+// Vary: Origin
+```
+
+Common vulnerabilities:
+- ❌ Using wildcard origin with credentials (blocked by browsers)
+- ❌ Missing CSRF protection
+- ❌ Accepting any origin dynamically without validation
+- ❌ Using HTTP instead of HTTPS
+
+CSRF protection strategies:
+1. Double-submit cookie pattern
+2. Synchronizer token pattern
+3. SameSite cookie attribute (Strict or Lax)
+4. Custom request headers
+
+Safe alternative:
+If you don't need cookies, use Authorization header:
+```typescript
+fetch('/api/data', {
+  headers: {
+    'Authorization': `Bearer ${token}`,
+  }
+});
+```""",
+    },
+    {
+        "ruleName": "window_name_xss",
+        "substrings": ["window.name", "window['name']"],
+        "reminder": """⚠️ Security Warning: window.name can be a source of XSS vulnerabilities.
+
+Why it's dangerous:
+- window.name persists across page navigations
+- Can be set by any page (even cross-origin)
+- Often overlooked as untrusted input
+
+Unsafe pattern:
+```typescript
+// ❌ Bad: Direct use of window.name
+document.getElementById('display').innerHTML = window.name;
+eval(window.name); // Very dangerous!
+```
+
+Safe pattern:
+```typescript
+// ✅ Good: Treat as untrusted input
+const name = window.name;
+if (typeof name === 'string' && name.length < 100) {
+  // Validate and sanitize
+  const sanitized = DOMPurify.sanitize(name);
+  element.textContent = sanitized; // Use textContent, not innerHTML
+}
+```
+
+Best practices:
+1. Always validate window.name content
+2. Never execute code from window.name
+3. Never insert into DOM without sanitization
+4. Prefer other storage mechanisms (sessionStorage, state)""",
+    },
 ]
 
 
